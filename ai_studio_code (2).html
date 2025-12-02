@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SWAG 活動扭蛋機</title>
+    <style>
+        :root {
+            --primary-color: #ff4081;
+            --bg-color: #121212;
+            --card-bg: #1e1e1e;
+            --text-color: #ffffff;
+            --secondary-text: #b0b0b0;
+            --accent-green: #00e676;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        h1 { margin-bottom: 20px; text-transform: uppercase; letter-spacing: 2px; }
+
+        /* 卡片通用樣式 */
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 12px;
+            padding: 20px;
+            width: 100%;
+            max-width: 500px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+            box-sizing: border-box;
+        }
+
+        .user-info { display: flex; justify-content: space-between; align-items: center; }
+        .user-id { font-size: 0.9rem; color: var(--secondary-text); }
+        .points { font-size: 1.5rem; font-weight: bold; color: var(--accent-green); }
+
+        /* 扭蛋區塊 */
+        .gacha-section { text-align: center; }
+        .gacha-btn {
+            background: linear-gradient(45deg, #ff4081, #ff80ab);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            font-weight: bold;
+            box-shadow: 0 4px 15px rgba(255, 64, 129, 0.4);
+            width: 80%;
+        }
+        .gacha-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255, 64, 129, 0.6); }
+        .gacha-btn:active { transform: translateY(1px); }
+        .gacha-btn:disabled { background: #555; cursor: not-allowed; box-shadow: none; transform: none; }
+
+        .price-tag { margin-top: 10px; color: var(--secondary-text); font-size: 0.9rem; }
+
+        /* 結果顯示 */
+        #result-area {
+            min-height: 60px;
+            margin-top: 20px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-top: 1px solid #333;
+            padding-top: 15px;
+        }
+        .win-anim { animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); color: var(--accent-green); font-weight: bold; }
+        .error-msg { color: #ff5252; }
+
+        /* 歷史紀錄表格 */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { text-align: left; color: var(--secondary-text); font-size: 0.8rem; padding-bottom: 10px; border-bottom: 1px solid #333; }
+        td { padding: 12px 0; border-bottom: 1px solid #333; font-size: 0.9rem; }
+        .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; }
+        .status-SUCCESS { background: rgba(0, 230, 118, 0.2); color: var(--accent-green); }
+        .status-PENDING { background: rgba(255, 193, 7, 0.2); color: #ffc107; }
+
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid rgba(255,255,255,0.1);
+            border-left-color: var(--primary-color);
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+        }
+
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes popIn { 0% { transform: scale(0.5); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <h1>💎 活動扭蛋機</h1>
+
+    <!-- 1. 用戶狀態卡片 -->
+    <div class="card">
+        <div class="user-info">
+            <div>
+                <div style="font-size: 0.8rem; color: #888;">USER ID</div>
+                <div class="user-id" id="display-uid">讀取中...</div>
+            </div>
+            <div style="text-align: right;">
+                <div style="font-size: 0.8rem; color: #888;">目前點數</div>
+                <div class="points" id="display-points">---</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 操作卡片 -->
+    <div class="card gacha-section">
+        <button id="btn-play" class="gacha-btn" onclick="play()">
+            開始扭蛋
+        </button>
+        <div class="price-tag">每次消耗 5,000 點</div>
+
+        <div id="result-area">
+            <span style="color: #666;">點擊按鈕試試手氣！</span>
+        </div>
+    </div>
+
+    <!-- 3. 紀錄卡片 -->
+    <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h3 style="margin:0;">📜 中獎紀錄</h3>
+            <button onclick="loadHistory()" style="background:none; border:1px solid #555; color:#aaa; padding:5px 10px; border-radius:4px; cursor:pointer;">重新整理</button>
+        </div>
+        <table id="history-table">
+            <thead>
+                <tr>
+                    <th>獎品</th>
+                    <th>狀態</th>
+                    <th style="text-align: right;">時間</th>
+                </tr>
+            </thead>
+            <tbody id="history-body">
+                <tr><td colspan="3" style="text-align:center; color:#555;">載入中...</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+    <script>
+        // ================= 設定區 =================
+        const API_BASE = "https://gacha-api-905468082258.asia-east1.run.app/api";
+        // =========================================
+
+        const params = new URLSearchParams(window.location.search);
+        // 如果網址沒有 user_id，這裡預設一個方便測試 (可選)
+        const userId = params.get('user_id'); 
+
+        // 頁面載入時執行
+        window.onload = function() {
+            if (!userId) {
+                document.body.innerHTML = '<h2 style="color:white; text-align:center; margin-top:50px;">❌ 錯誤：網址缺少 user_id<br><span style="font-size:1rem; color:#888;">請使用 ?user_id=你的ID 訪問</span></h2>';
+                return;
+            }
+            document.getElementById('display-uid').innerText = userId;
+            refreshAll();
+        };
+
+        async function refreshAll() {
+            await Promise.all([loadBalance(), loadHistory()]);
+        }
+
+        // 1. 載入餘額
+        async function loadBalance() {
+            try {
+                const res = await fetch(`${API_BASE}/user/balance?user_id=${userId}`);
+                const data = await res.json();
+                // 格式化數字 (加上逗號)
+                const formatted = new Intl.NumberFormat('en-US').format(data.points || 0);
+                document.getElementById('display-points').innerText = formatted;
+            } catch (e) {
+                console.error(e);
+                document.getElementById('display-points').innerText = "Err";
+            }
+        }
+
+        // 2. 載入歷史紀錄
+        async function loadHistory() {
+            const tbody = document.getElementById('history-body');
+            try {
+                const res = await fetch(`${API_BASE}/user/history?user_id=${userId}`);
+                const data = await res.json();
+                
+                tbody.innerHTML = '';
+                if (!data.history || data.history.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#555;">尚無紀錄</td></tr>';
+                    return;
+                }
+
+                data.history.forEach(item => {
+                    // 簡化時間顯示
+                    const date = new Date(item.created_at || item.date); 
+                    const timeStr = date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                    
+                    const row = `
+                        <tr>
+                            <td>
+                                <div style="font-weight:bold;">${item.reward_value || item.value}</div>
+                                <div style="font-size:0.75rem; color:#888;">${item.reward_type || item.type}</div>
+                            </td>
+                            <td><span class="status-badge status-${item.status}">${item.status}</span></td>
+                            <td style="text-align: right; color:#888;">${timeStr}</td>
+                        </tr>
+                    `;
+                    tbody.innerHTML += row;
+                });
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="3" style="text-align:center; color:red;">無法載入紀錄</td></tr>';
+            }
+        }
+
+        // 3. 執行扭蛋
+        async function play() {
+            const btn = document.getElementById('btn-play');
+            const resultArea = document.getElementById('result-area');
+            
+            // 鎖定按鈕，顯示 Loading
+            btn.disabled = true;
+            btn.innerHTML = '<div class="spinner"></div> 扭蛋中...';
+            resultArea.innerHTML = '<span style="color:#888;">正在祈禱好運...</span>';
+
+            try {
+                const res = await fetch(`${API_BASE}/gacha`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                
+                const data = await res.json();
+                
+                if (data.status === 'success') {
+                    // 顯示結果動畫
+                    const prizeName = data.prize.value || data.prize; // 相容不同回傳格式
+                    resultArea.innerHTML = `<div class="win-anim">🎉 恭喜獲得：${prizeName}</div>`;
+                    
+                    // 成功後重新整理餘額與紀錄
+                    setTimeout(() => refreshAll(), 1000); 
+                } else {
+                    resultArea.innerHTML = `<div class="error-msg">❌ 失敗：${data.msg || '餘額不足或系統錯誤'}</div>`;
+                }
+
+            } catch (e) {
+                resultArea.innerHTML = `<div class="error-msg">❌ 網路連線錯誤</div>`;
+            } finally {
+                // 恢復按鈕
+                btn.disabled = false;
+                btn.innerText = '再次扭蛋';
+            }
+        }
+    </script>
+</body>
+</html>
